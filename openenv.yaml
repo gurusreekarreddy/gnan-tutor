@@ -1,0 +1,8 @@
+name: gnan-tutor
+version: "1.0.0"
+description: "Cognitive Fatigue & Adaptive Learning Simulator for EdTech agents."
+entrypoint: "server.gnan_tutor_environment:GnanTutorEnv"
+tasks:
+  - id: "easy"
+  - id: "medium"
+  - id: "hard"

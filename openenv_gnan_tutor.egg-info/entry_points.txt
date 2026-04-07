@@ -1,0 +1,2 @@
+[console_scripts]
+server = gnan_tutor.server.app:main
