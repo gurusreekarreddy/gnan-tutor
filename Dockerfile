@@ -6,7 +6,7 @@ RUN pip install openenv-core pydantic > /dev/null 2>&1
 
 COPY . /app
 
-EXPOSE 8000
+EXPOSE 7860
 
 ENV ENABLE_WEB_INTERFACE=true
-CMD ["openenv", "start"]
+CMD ["openenv", "serve", "--host", "0.0.0.0", "--port", "7860"]
