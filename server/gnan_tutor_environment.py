@@ -4,8 +4,9 @@ from openenv.core.env_server import Environment
 from .models import TutorAction, StudentObservation
 
 class GnanTutorEnv(Environment):
-    def __init__(self):
+    def __init__(self, task_id: str = "easy"):
         super().__init__()
+        self.task_id = task_id
         self.mastery = 0.0
         self.energy = 1.0
         self.steps_left = 0
@@ -13,33 +14,26 @@ class GnanTutorEnv(Environment):
         self.task_drain_multiplier = 1.0
         self.burnout = False
         self.is_done = False
-        self.task_id = ""
 
-    def reset(self, task_id: str = "easy", **kwargs) -> Any:
-        self.task_id = task_id
-        
-        if self.task_id == "easy":
-            self.steps_left = 10
-            self.energy = 1.0
-            self.task_drain_multiplier = 1.0
-        elif self.task_id == "medium":
-            self.steps_left = 15
-            self.energy = 1.0
-            self.task_drain_multiplier = 1.0
-        elif self.task_id == "hard":
-            self.steps_left = 8
-            self.energy = 0.4
-            self.task_drain_multiplier = 1.5
-        else:
-            self.steps_left = 10
-            self.energy = 1.0
-            self.task_drain_multiplier = 1.0
-            
-        self.last_mastery_gain = 0.0
+    def reset(self, **kwargs) -> Any:
         self.mastery = 0.0
+        self.last_mastery_gain = 0.0
         self.burnout = False
         self.is_done = False
         
+        if self.task_id == "hard":
+            self.energy = 0.4
+            self.steps_left = 8
+            self.task_drain_multiplier = 1.5
+        elif self.task_id == "medium":
+            self.energy = 1.0
+            self.steps_left = 15
+            self.task_drain_multiplier = 1.0
+        else:
+            self.energy = 1.0
+            self.steps_left = 10
+            self.task_drain_multiplier = 1.0
+            
         return self.state()
 
     def step(self, action: TutorAction) -> Tuple[Any, float, bool, Dict[str, Any]]:
