@@ -1,35 +1,26 @@
-from fastapi import FastAPI
-from server.gnan_tutor_environment import GnanTutorEnv
-from server.models import TutorAction
-
-app = FastAPI()
-env = GnanTutorEnv()
-
-@app.get("/")
-def root():
-    return {"status": "Gnan Tutor Environment Running 🚀"}
-
 @app.post("/reset")
-def reset():
-    obs = env.reset()
-    obs_data = obs.model_dump() if hasattr(obs, 'model_dump') else obs.dict() if hasattr(obs, 'dict') else obs
-    return {"observation": obs_data}
+async def reset(task_id: str = "easy"):
+    # Define the 3 tasks for the hackathon
+    steps_map = {"easy": 10, "medium": 15, "hard": 20}
+    energy_map = {"easy": 1.0, "medium": 1.0, "hard": 0.8}  # Hard starts with less energy
 
-@app.post("/step")
-def step(action: dict):
-    action_obj = TutorAction(**action)
-    obs, reward, done, info = env.step(action_obj)
-    
-    obs_data = obs.model_dump() if hasattr(obs, 'model_dump') else obs.dict() if hasattr(obs, 'dict') else obs
-        
-    return {
-        "observation": obs_data,
-        "reward": float(reward),
-        "done": bool(done),
-        "info": info
+    # 🔥 Validation (handles invalid inputs cleanly)
+    if task_id not in steps_map:
+        print(f"[WARN] Invalid task_id '{task_id}', defaulting to 'easy'")
+        task_id = "easy"
+
+    # Initialize the state based on the task
+    obs = {
+        "mastery": 0.0,
+        "energy": energy_map[task_id],
+        "steps_left": steps_map[task_id],
+        "last_mastery_gain": 0.0,
+        "done": False,
+        "reward": 0.0,
+        "metadata": {
+            "task_id": task_id,
+            "difficulty": task_id
+        }
     }
 
-@app.get("/state")
-def state():
-    state_data = env.state() if hasattr(env, 'state') else {}
-    return {"state": state_data}
+    return {"observation": obs}
