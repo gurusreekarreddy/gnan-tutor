@@ -1,4 +1,4 @@
-from openenv import serve
-from .gnan_tutor_environment import GnanTutorEnv
+from openenv.server import create_web_interface_app
+from server.gnan_tutor_environment import GnanTutorEnv
 
-app = serve(GnanTutorEnv)
+app = create_web_interface_app(GnanTutorEnv)
