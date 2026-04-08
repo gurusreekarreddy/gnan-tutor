@@ -5,34 +5,61 @@ colorFrom: blue
 colorTo: indigo
 sdk: docker
 pinned: false
-base_path: /web
 ---
 
-# Gnan AI Tutor
+# 🧠 Gnan AI Tutor - Cognitive RL Environment
 
----
-title: Gnan AI Tutor
-emoji: 🧠
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-pinned: false
----
+This environment models human-like learning under fatigue constraints, bridging reinforcement learning with cognitive science principles.
 
-This environment captures the trade-off between cognitive effort, fatigue accumulation, and learning efficiency under constrained time — a core challenge in real-world education systems.
+**Gnan Tutor** is a fatigue-aware Reinforcement Learning environment designed for the **Meta OpenEnv Challenge (2026)**. It moves beyond simple point-scoring by simulating cognitive exhaustion—agents must balance study intensity, energy depletion, and scheduled rest to maximize mastery. Built with a deterministic Smart Fallback Policy for LLM fault tolerance, Gnan Tutor provides a strictly clamped, exploit-proof MDP optimized for high-performance evaluation under tight hardware constraints.
 
-This environment is intentionally lightweight to comply with strict 2vCPU/8GB constraints while preserving behavioral realism.
+## 🚀 Key Architecture
+- **Backend:** FastAPI (Python 3.10)
+- **Dependency Management:** `uv` for ultra-fast, frozen builds.
+- **Containerization:** Fully Dockerized for seamless deployment and reproducibility.
+- **Author:** Anta (Guru Sreekar Reddy)
 
-## Action & Observation Spaces
-- **TutorAction**: Includes `action` (study, rest, test) and `intensity` (0.1 to 1.0).
-- **StudentObservation**: Tracks `mastery`, `energy`, `steps_left`, and `last_mastery_gain`. This explicit visibility helps the LLM understand the temporal feedback loop.
+## 📊 Environment Specification
 
-## Grader Logic & Realism
-The objective is to maximize mastery without hitting 0 energy.
-- **Grader**: Returns a final score `[0.0 - 1.0]` equal to final mastery. If the student reaches burnout (`energy <= 0.0`), the episode terminates immediately and the final_score MUST be `0.0`.
-- **Bounds Clamping**: All system state variables are strictly clamped (`self.mastery = min(1.0, self.mastery)`, `self.energy = max(0.0, min(1.0, self.energy))`) to lock out exploitation.
-- **Burnout Override**: Exhausting the student results in an immediate done-state with heavily a penalized reward (-1.0).
-- **Anti-Exploit Anti-Spam (Realism mechanics)**:
-  - `study`: Yields variable mastery, heavily penalized by 50% if energy is dangerously low (< 0.3).
-  - `rest`: Crucial for safely restoring energy without drain.
-  - `test`: Verifies progress securely while draining minimal energy, yielding reward only on `mastery > 0.8`.
+### Observation Space
+The agent receives a state dictionary containing:
+* **`mastery`**: [0.0 - 1.0] Current level of knowledge acquired.
+* **`energy`**: [0.0 - 1.0] Remaining cognitive stamina.
+* **`steps_left`**: Integer count of remaining attempts.
+* **`last_mastery_gain`**: Delta of mastery from the previous action.
+
+### Action Space
+* **`action`**: `["study", "rest", "test"]`
+* **`intensity`**: [0.0 - 1.0] Scalar multiplier for the chosen action's impact.
+
+## 🧩 Tasks
+The environment includes three progressively difficult tasks:
+- **Easy:** 10 steps, full energy (1.0)
+- **Medium:** 15 steps, full energy (1.0)
+- **Hard:** 20 steps, reduced starting energy (0.8)
+
+Each task evaluates the agent’s ability to balance learning efficiency with fatigue management under increasing constraints.
+
+## ⚖️ Core Environment Logic & Realism
+To prevent "exploitation" and ensure behavioral realism, Gnan Tutor implements strict constraints:
+
+1.  **Cognitive Fatigue:** If student energy drops below **0.3**, the mastery gain from `study` actions is penalized by **50%**.
+2.  **The Burnout Rule:** If `energy` hits **0.0**, the episode terminates immediately with a heavy penalty (`reward: -1.0`). 
+3.  **The Win Condition:** A `test` action only succeeds if `mastery` is **>= 0.8**, rewarding the agent with a successful completion state. 
+4.  **Reward Shaping:** The agent receives incremental rewards for mastery gains during study. Additional rewards/penalties are applied for test success/failure. Final performance correlates strongly with achieved mastery.
+5.  **Bounds Clamping:** All state variables are strictly clamped (`0.0` to `1.0`) to prevent out-of-bounds exploits.
+
+## 🛡️ Fault Tolerance & Smart Fallback
+To ensure uninterrupted evaluation—even during API timeouts, rate limits, or LLM hallucinations—the inference engine includes a deterministic **Smart Fallback Policy**. 
+
+If the LLM fails to return a valid JSON action, the agent autonomously reverts to a rule-based safety protocol:
+- **Low Energy (< 0.3):** Forces `rest` to prevent burnout.
+- **High Mastery (>= 0.8):** Forces `test` to secure the win condition.
+- **Default:** Executes a safe `study` action with balanced intensity.
+
+## 🧪 Running Baseline Evaluation
+To evaluate an LLM agent across all tasks (easy, medium, hard) and generate the required structured logs (START / STEP / END):
+
+```bash
+export HF_TOKEN="your_huggingface_token_here"
+python3 inference.py
