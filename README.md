@@ -60,6 +60,3 @@ If the LLM fails to return a valid JSON action, the agent autonomously reverts t
 ## 🧪 Running Baseline Evaluation
 To evaluate an LLM agent across all tasks (easy, medium, hard) and generate the required structured logs (START / STEP / END):
 
-```bash
-export HF_TOKEN="your_huggingface_token_here"
-python3 inference.py
