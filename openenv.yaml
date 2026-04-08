@@ -1,8 +1,75 @@
-name: gnan-tutor
-version: "1.0.0"
-description: "Cognitive Fatigue & Adaptive Learning Simulator for EdTech agents."
-entrypoint: "server.gnan_tutor_environment:GnanTutorEnv"
+name: "gnan-tutor-v1"
+version: "0.1.0"
+
+description: >
+  A cognitive fatigue-aware tutoring environment where an agent must balance
+  learning (mastery gain) with energy management. The agent strategically
+  chooses between study, rest, and test actions to maximize performance.
+
+tags:
+  - openenv
+  - reinforcement-learning
+  - education
+  - cognitive-science
+
 tasks:
-  - id: "easy"
-  - id: "medium"
-  - id: "hard"
+  - id: "easy"
+    description: "Achieve high mastery with 10 steps and full starting energy."
+  - id: "medium"
+    description: "Achieve high mastery with 15 steps and full starting energy."
+  - id: "hard"
+    description: "Achieve high mastery with 20 steps and reduced starting energy (0.8)."
+
+observation_space:
+  type: "object"
+  properties:
+    mastery:
+      type: "number"
+      minimum: 0.0
+      maximum: 1.0
+      description: "Represents knowledge level of the agent."
+    energy:
+      type: "number"
+      minimum: 0.0
+      maximum: 1.0
+      description: "Represents available cognitive energy."
+    steps_left:
+      type: "integer"
+      description: "Remaining steps before episode ends."
+    last_mastery_gain:
+      type: "number"
+      description: "Incremental mastery gained in previous step."
+    done:
+      type: "boolean"
+      description: "Indicates whether the episode is complete."
+
+action_space:
+  type: "object"
+  properties:
+    action:
+      type: "string"
+      enum: ["study", "rest", "test"]
+      description: "Type of action taken by the agent."
+    intensity:
+      type: "number"
+      minimum: 0.0
+      maximum: 1.0
+      description: "Strength of the chosen action."
+
+reward:
+  type: "number"
+  description: >
+    Reward is provided incrementally:
+    - Positive reward for increasing mastery through study
+    - Small reward for resting (energy recovery)
+    - High reward for successful testing when mastery >= 0.8
+    - Negative reward for premature testing or inefficient behavior
+
+termination:
+  conditions:
+    - "steps_left <= 0"
+    - "test action succeeds with mastery >= 0.8"
+
+metadata:
+  author: "Anta"
+  project: "Gnan Tutor - Cognitive RL Environment"
