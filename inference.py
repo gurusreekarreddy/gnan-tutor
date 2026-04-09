@@ -8,6 +8,7 @@ from openai import OpenAI
 # 1. ENV VARIABLES
 # =========================
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+# FIX 2: Using Qwen as it is highly reliable on the HF free tier router
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
@@ -15,7 +16,6 @@ if not HF_TOKEN:
     raise ValueError("HF_TOKEN is required for hackathon evaluation.")
 
 client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
-# Let's keep localhost as default for the Docker grader, but allow HF Space override
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
 MAX_STEPS = 15
 
@@ -63,7 +63,6 @@ Intensity: 0.1 to 1.0"""
             max_tokens=50
         )
         content = response.choices[0].message.content.strip()
-        # Clean up any markdown Qwen might inject
         if content.startswith("```json"):
             content = content.replace("```json", "").replace("```", "").strip()
             
@@ -76,24 +75,22 @@ Intensity: 0.1 to 1.0"""
         return data
         
     except Exception as e:
-        # Fallback to hardcoded logic if the LLM fails or times out
         return smart_fallback(observation)
 
 # =========================
 # 4. STRICT EVALUATION LOOP
 # =========================
 def run_evaluation():
-    # Loop exactly through the 3 tasks for the grader
+    # FIX 1: Explicitly loop through all 3 tasks
     for task_id in ["easy", "medium", "hard"]:
         
-        # 🚨 STRICT META FORMAT: [START]
+        # FIX 3: 🚨 STRICT META FORMAT (DO NOT CHANGE)
         print(f"[START] task={task_id} env=gnan-tutor model={MODEL_NAME}", flush=True)
 
-        # FIXED: Use params= instead of json= for FastAPI query strings
+        # FIX 1 continued: Use params= so FastAPI reads the task_id correctly
         try:
             response = requests.post(f"{ENV_BASE_URL}/reset", params={"task_id": task_id}, timeout=30).json()
         except Exception:
-            # Fallback if query params fail for some reason
             response = requests.post(f"{ENV_BASE_URL}/reset?task_id={task_id}", timeout=30).json()
             
         obs = response.get("observation", {})
@@ -105,13 +102,12 @@ def run_evaluation():
             step_count += 1
             action_payload = get_llm_action(obs)
             
-            # Format action for log (e.g., "study(0.5)")
             act_str = f"{action_payload.get('action')}({action_payload.get('intensity')})"
 
             try:
                 step_response = requests.post(f"{ENV_BASE_URL}/step", json=action_payload, timeout=30).json()
             except Exception:
-                break # End early if server dies
+                break
 
             obs = step_response.get("observation", obs)
             reward = float(step_response.get("reward", 0.0))
@@ -120,12 +116,12 @@ def run_evaluation():
             rewards_list.append(reward)
             done_str = str(done).lower()
 
-            # 🚨 STRICT META FORMAT: [STEP]
+            # FIX 3: 🚨 STRICT META FORMAT (DO NOT CHANGE)
             print(f"[STEP] step={step_count} action={act_str} reward={reward:.2f} done={done_str} error=null", flush=True)
             
-            time.sleep(0.2) # Small delay so we don't spam the API
+            time.sleep(0.2)
 
-        # 🚨 STRICT META FORMAT: [END]
+        # FIX 3: 🚨 STRICT META FORMAT (DO NOT CHANGE)
         score = float(obs.get("mastery", 0.0))
         success_str = str(score >= 0.8).lower()
         rewards_csv = ",".join([f"{r:.2f}" for r in rewards_list])
