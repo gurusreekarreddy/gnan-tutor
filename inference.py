@@ -67,13 +67,13 @@ def run():
     for task_id in ["easy", "medium", "hard"]:
         print(f"[START] task={task_id} env=gnan-tutor model={MODEL_NAME}", flush=True)
         
-        # 🛡️ SAFE RESET (NO `continue`!)
+        # 🛡️ SAFE RESET
         obs = {}
         try:
             r = requests.post(f"{ENV_BASE_URL}/reset", params={"task_id": task_id}, timeout=10).json()
             obs = r.get("observation", {})
         except Exception:
-            pass # Keep going with empty obs to guarantee [END] log prints
+            pass 
 
         done = False
         step = 0
@@ -83,12 +83,20 @@ def run():
             step += 1
             action = get_action(obs)
             
-            # 🛡️ SAFE STEP (NO `break`!)
+            # 🛡️ SAFE STEP & SAFE REWARD
             reward = 0.0
             try:
                 s = requests.post(f"{ENV_BASE_URL}/step", json=action, timeout=10).json()
                 obs = s.get("observation", obs)
-                reward = float(s.get("reward", 0.0))
+                
+                # Bulletproof Reward Parsing
+                raw_reward = s.get("reward", 0.0)
+                try:
+                    parsed_reward = float(raw_reward)
+                except Exception:
+                    parsed_reward = 0.0
+                reward = max(-1.0, min(1.0, parsed_reward))
+                
                 done = bool(s.get("done", False))
             except Exception:
                 done = True # Force standard exit instead of crashing
@@ -96,8 +104,16 @@ def run():
             rewards.append(f"{reward:.2f}")
             print(f"[STEP] step={step} action={action['action']}({action['intensity']}) reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
 
-        # 🛡️ GUARANTEED END LOG
-        score = float(obs.get("mastery", 0.0))
+        # 🛡️ BULLETPROOF END LOG & STRICT CLAMP
+        raw_score = obs.get("mastery", 0.0)
+        try:
+            raw_score = float(raw_score)
+        except Exception:
+            raw_score = 0.0
+            
+        # 🚨 STRICT CLAMP: Exactly what the Meta bot asked for (NOT 0.0, NOT 1.0)
+        score = max(0.001, min(0.999, raw_score))
+        
         print(f"[END] success={str(score>=0.8).lower()} steps={step} score={score:.3f} rewards={','.join(rewards)}", flush=True)
 
 if __name__ == "__main__":
