@@ -90,7 +90,6 @@ def run():
     wait_for_server()
 
     for task_id in ["easy", "medium", "hard"]:
-        # EXACT FORMAT: [START]
         print(f"[START] task={task_id} env={ENV_NAME} model={MODEL_NAME}", flush=True)
 
         obs = {}
@@ -99,7 +98,6 @@ def run():
         rewards = []
 
         try:
-            # Reset with JSON body — critical fix
             r = requests.post(
                 f"{ENV_BASE_URL}/reset",
                 json={"task_id": task_id},
@@ -107,7 +105,6 @@ def run():
             )
             obs = r.json().get("observation", {})
         except Exception as e:
-            # Guaranteed [END] even if reset fails
             print(f"[END] success=false steps=0 rewards=", flush=True)
             continue
 
@@ -137,7 +134,6 @@ def run():
 
             rewards.append(f"{reward:.2f}")
 
-            # EXACT FORMAT: [STEP]
             print(
                 f"[STEP] step={step} action={action_str} "
                 f"reward={reward:.2f} done={str(done).lower()} "
@@ -147,7 +143,6 @@ def run():
 
             time.sleep(0.1)
 
-        # EXACT FORMAT: [END]
         final_mastery = float(obs.get("mastery", 0.0))
         success = final_mastery >= 0.8
         rewards_str = ",".join(rewards) if rewards else "0.00"
