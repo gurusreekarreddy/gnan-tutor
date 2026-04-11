@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -22,9 +22,6 @@ TASK_CONFIGS = {
     "hard":   {"steps": 6,  "energy": 0.4},
 }
 
-class ResetRequest(BaseModel):
-    task_id: Optional[str] = "easy"
-
 class ActionPayload(BaseModel):
     action: str
     intensity: float = 0.5
@@ -37,14 +34,21 @@ def health():
     return {"status": "healthy", "env": "gnan-tutor"}
 
 # ----------------------------
-# RESET
+# RESET — handles empty body OR json body
 # ----------------------------
 @app.post("/reset")
-def reset(request: ResetRequest):
+async def reset(request: Request):
     global current_state, current_task_id
-    task_id = request.task_id or "easy"
+
+    try:
+        body = await request.json()
+        task_id = body.get("task_id", "easy")
+    except Exception:
+        task_id = "easy"
+
     if task_id not in TASK_CONFIGS:
         task_id = "easy"
+
     current_task_id = task_id
     config = TASK_CONFIGS[task_id]
     current_state = {
@@ -65,7 +69,15 @@ def reset(request: ResetRequest):
 def step(payload: ActionPayload):
     global current_state
     if not current_state:
-        reset(ResetRequest(task_id="easy"))
+        current_state = {
+            "mastery": 0.0,
+            "energy": 1.0,
+            "steps_left": 10,
+            "last_mastery_gain": 0.0,
+            "done": False,
+            "reward": 0.0,
+            "metadata": {"task_id": "easy", "difficulty": "easy"}
+        }
 
     action = payload.action
     intensity = max(0.1, min(1.0, payload.intensity))
@@ -108,7 +120,6 @@ def step(payload: ActionPayload):
         else:
             reward = round(-0.1 * (0.8 - current_state["mastery"]), 4)
 
-    # Clamp all values
     current_state["mastery"] = round(min(1.0, max(0.0, current_state["mastery"])), 4)
     current_state["energy"] = round(min(1.0, max(0.0, current_state["energy"])), 4)
 
@@ -194,22 +205,33 @@ def tasks():
 def baseline():
     results = {}
     for task_id in ["easy", "medium", "hard"]:
-        reset(ResetRequest(task_id=task_id))
+        config = TASK_CONFIGS[task_id]
+        state = {
+            "mastery": 0.0,
+            "energy": config["energy"],
+            "steps_left": config["steps"],
+            "last_mastery_gain": 0.0,
+            "done": False,
+            "reward": 0.0,
+            "metadata": {"task_id": task_id}
+        }
         done = False
         total_reward = 0.0
         steps = 0
+
         while not done and steps < 25:
-            obs = current_state
-            if obs["energy"] < 0.3:
+            if state["energy"] < 0.3:
                 a, i = "rest", 0.8
-            elif obs["mastery"] >= 0.8:
+            elif state["mastery"] >= 0.8:
                 a, i = "test", 0.9
             else:
                 a, i = "study", 0.6
+
             r = step(ActionPayload(action=a, intensity=i))
             total_reward += r["reward"]
             done = r["done"]
             steps += 1
+
         results[task_id] = {
             "total_reward": round(total_reward, 4),
             "final_score": current_state.get("mastery", 0.0),
