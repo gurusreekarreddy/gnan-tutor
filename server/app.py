@@ -52,7 +52,6 @@ async def reset(request: Request):
     current_task_id = task_id
     config = TASK_CONFIGS[task_id]
     
-    # 🚨 NUKE 1: Initialize at 0.001 to avoid strict 0.0 error
     current_state = {
         "mastery": 0.001,
         "energy": config["energy"],
@@ -72,7 +71,7 @@ def step(payload: ActionPayload):
     global current_state
     if not current_state:
         current_state = {
-            "mastery": 0.001, # 🚨 CLAMPED
+            "mastery": 0.001,
             "energy": 1.0,
             "steps_left": 10,
             "last_mastery_gain": 0.0,
@@ -89,51 +88,55 @@ def step(payload: ActionPayload):
 
     if action == "study":
         energy_cost = 0.15 * intensity
-        current_state["energy"] -= energy_cost
-        current_state["energy"] = max(0.0, current_state["energy"])
+        current_state["energy"] = max(0.001, current_state["energy"] - energy_cost)
+        
         base_gain = 0.15 * intensity
         if current_state["energy"] < 0.3:
             base_gain *= 0.5
-        current_state["mastery"] += base_gain
+            
+        current_state["mastery"] = min(0.999, current_state["mastery"] + base_gain)
         reward = round(base_gain * 0.8, 4)
-        if current_state["energy"] <= 0.0:
+        
+        if current_state["energy"] <= 0.001:
             current_state["done"] = True
-            reward = -1.0
+            reward = -0.999 
 
     elif action == "rest":
         old_energy = current_state["energy"]
-        current_state["energy"] += 0.3 * intensity
+        current_state["energy"] = min(1.0, current_state["energy"] + 0.3 * intensity)
         reward = 0.05 if old_energy < 0.5 else 0.01
 
     elif action == "test":
-        current_state["energy"] = max(0.0, current_state["energy"] - 0.05)
+        current_state["energy"] = max(0.001, current_state["energy"] - 0.05)
         if current_state["mastery"] >= 0.8:
-            reward = 1.0
+            reward = 0.999 
             current_state["done"] = True
-            # 🚨 NUKE 2: Prevent perfect 1.0 score on success
             current_state["mastery"] = 0.999 
         else:
             reward = round(-0.1 * (0.8 - current_state["mastery"]), 4)
 
-    # 🚨 NUKE 3: Global mathematically strict boundaries
+    # 🚨 Global Secondary Clamps
     current_state["mastery"] = round(min(0.999, max(0.001, current_state["mastery"])), 4)
-    current_state["energy"] = round(min(1.0, max(0.0, current_state["energy"])), 4)
+    current_state["energy"] = round(min(1.0, max(0.001, current_state["energy"])), 4)
     current_state["last_mastery_gain"] = round(current_state["mastery"] - prev_mastery, 4)
 
     if current_state["steps_left"] <= 0:
         current_state["done"] = True
 
+    # Global Reward Clamp
+    reward = round(max(-0.999, min(0.999, reward)), 4)
     current_state["reward"] = reward
 
     return {
         "observation": current_state,
         "reward": reward,
         "done": current_state["done"],
-        "info": {}
+        "score": current_state["mastery"], # 🔥 CRITICAL FIX: TOP LEVEL SCORE
+        "info": {} 
     }
 
 # ----------------------------
-# STATE
+# STATE & TASKS & GRADER
 # ----------------------------
 @app.get("/state")
 def state():
@@ -143,9 +146,6 @@ def state():
         "steps_left": current_state.get("steps_left", 0)
     }
 
-# ----------------------------
-# GRADER ARMOR (Catches multiple routes)
-# ----------------------------
 @app.get("/grader")
 @app.post("/grader")
 @app.get("/score")
@@ -155,49 +155,22 @@ def grader():
     clamped_score = max(0.001, min(0.999, raw_score))
     return {"score": clamped_score}
 
-# ----------------------------
-# TASKS
-# ----------------------------
 @app.get("/tasks")
 def tasks():
     return {
         "tasks": [
-            {
-                "id": "easy",
-                "description": "10 steps, full energy (1.0). Balance study and rest.",
-                "difficulty": "easy",
-                "max_steps": 10,
-                "starting_energy": 1.0
-            },
-            {
-                "id": "medium",
-                "description": "8 steps, reduced energy (0.7). Tighter constraints.",
-                "difficulty": "medium",
-                "max_steps": 8,
-                "starting_energy": 0.7
-            },
-            {
-                "id": "hard",
-                "description": "6 steps, low energy (0.4). Near-burnout from start.",
-                "difficulty": "hard",
-                "max_steps": 6,
-                "starting_energy": 0.4
-            }
+            {"id": "easy", "description": "10 steps, 1.0 energy", "difficulty": "easy", "max_steps": 10, "starting_energy": 1.0},
+            {"id": "medium", "description": "8 steps, 0.7 energy", "difficulty": "medium", "max_steps": 8, "starting_energy": 0.7},
+            {"id": "hard", "description": "6 steps, 0.4 energy", "difficulty": "hard", "max_steps": 6, "starting_energy": 0.4}
         ],
         "action_schema": {
-            "action": {
-                "type": "string",
-                "values": ["study", "rest", "test"]
-            },
-            "intensity": {
-                "type": "float",
-                "range": "0.1 to 1.0"
-            }
+            "action": {"type": "string", "values": ["study", "rest", "test"]},
+            "intensity": {"type": "float", "range": "0.1 to 1.0"}
         }
     }
 
 # ----------------------------
-# BASELINE (Completely Rewritten to avoid 0.0 logic crash)
+# BASELINE
 # ----------------------------
 @app.post("/baseline")
 def baseline():
@@ -207,7 +180,6 @@ def baseline():
         current_task_id = task_id
         config = TASK_CONFIGS[task_id]
         
-        # 🚨 NUKE 4: Baseline uses 0.001
         current_state = {
             "mastery": 0.001, 
             "energy": config["energy"],
@@ -238,7 +210,7 @@ def baseline():
 
         results[task_id] = {
             "total_reward": round(total_reward, 4),
-            "final_score": current_state.get("mastery", 0.001), # 🚨 CLAMPED!
+            "score": current_state.get("mastery", 0.001), 
             "steps": steps
         }
     return results
