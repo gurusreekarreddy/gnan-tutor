@@ -21,8 +21,8 @@ observation_space:
   properties:
     mastery:
       type: "number"
-      minimum: 0.0
-      maximum: 1.0
+      minimum: 0.001
+      maximum: 0.999
       description: "Represents knowledge level of the agent."
     energy:
       type: "number"
@@ -52,6 +52,8 @@ action_space:
       description: "Strength of the chosen action."
 reward:
   type: "number"
+  minimum: -1.0
+  maximum: 1.0
   description: >
     Incremental rewards throughout episode:
     - Positive reward for mastery gain via study
